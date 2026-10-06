@@ -2,7 +2,7 @@
 ## Title: |cff1784d1ElvUI|r |cfffe7b2cCPU Analyzer|r
 ## Notes: CPU Analyzer for ElvUI
 ## Author: Resike
-## Version: 0.1.9
+## Version: 0.1.8
 ## DefaultState: Enabled
 ## Dependencies: ElvUI
 ## RequiredDeps: ElvUI

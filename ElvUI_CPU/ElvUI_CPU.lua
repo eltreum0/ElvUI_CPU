@@ -225,7 +225,7 @@ function CPU:CreateOptions()
 	self.frame.version:SetHeight(20)
 	self.frame.version:SetJustifyV("Middle")
 	self.frame.version:SetJustifyH("Right")
-	self.frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
+	self.frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
 	self.frame.version:SetWordWrap(false)
 
 	self.frame.main = { }
@@ -764,7 +764,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
 	end)
 
 	frame.bl = CreateFrame("Frame", nil, frame)
@@ -831,7 +831,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
 	end)
 
 	frame.tl = CreateFrame("Frame", nil, frame)
@@ -899,7 +899,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
 	end)
 
 	frame.tr = CreateFrame("Frame", nil, frame)
@@ -967,7 +967,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
 	end)
 
 	frame:SetScript("OnSizeChanged", function(self)
