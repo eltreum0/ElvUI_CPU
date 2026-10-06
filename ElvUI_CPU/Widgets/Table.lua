@@ -5,7 +5,8 @@ local CPU = Addon.ElvUI_CPU
 local assert, strfind, tostring = assert, strfind, tostring
 local type, select, sort = type, select, sort
 
-local min, max, floor, round = min, max, floor or math.floor, math.round
+local min, max, floor = min, max, floor or math.floor
+local round = Addon.round
 
 local UIParent = UIParent
 local PlaySound = PlaySound

@@ -29,13 +29,14 @@ local GameTooltip = GameTooltip
 
 _G.ElvUI_CPU = CPU
 
-local round = function(num, decimals)
+local mathround = function(num, decimals)
 	local mult = 10^(decimals or 0)
 
 	return floor(num * mult + 0.5) / mult
 end
 
-math.round = round
+local round = math.round or mathround
+Addon.round = round
 
 local SetResizeBounds = function(frame, minWidth, minHeight, maxWidth, maxHeight)
 	if frame.SetResizeBounds then
@@ -64,6 +65,10 @@ local UpdateAddOnCPUUsage = UpdateAddOnCPUUsage or function(addon) end
 local ResetCPUUsage = ResetCPUUsage or function() end
 
 local function EnableProfiling()
+	if InCombatLockdown and InCombatLockdown() then
+		return
+	end
+
 	if C_AddOnProfiler and C_AddOnProfiler.IsEnabled and not C_AddOnProfiler.IsEnabled() then
 		if C_CVar and C_CVar.SetCVar then
 			pcall(C_CVar.SetCVar, "addonProfilerEnabled", "1")

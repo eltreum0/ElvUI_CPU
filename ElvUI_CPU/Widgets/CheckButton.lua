@@ -6,7 +6,7 @@ local CPU = Addon.ElvUI_CPU
 
 local CreateFrame = CreateFrame
 
-local GameFontNomal = GameFontNomal
+local GameFontNormal = GameFontNormal
 local GameFontHighlight = GameFontHighlight
 local GameFontDisable = GameFontDisable
 
@@ -15,21 +15,15 @@ local CheckButton = CPU:RegisterWidget("CheckButton")
 function CheckButton:Create(parent)
 	local frame = CreateFrame("CheckButton", nil, parent)
 	frame:SetSize(20, 20)
-	frame:SetNormalFontObject(GameFontNomal)
-	local normalFont = frame:GetNormalFontObject()
-	normalFont:SetTextColor(1, 1, 1)
+	frame:SetNormalFontObject(GameFontNormal)
 	frame:SetHighlightFontObject(GameFontHighlight)
-	local highlightFont = frame:GetHighlightFontObject()
-	highlightFont:SetTextColor(1, 0.82, 0)
 	frame:SetDisabledFontObject(GameFontDisable)
-	local disableFont = frame:GetDisabledFontObject()
-	disableFont:SetTextColor(0.5, 0.5, 0.5)
 	frame:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
 	frame:SetCheckedTexture("Interface\\Buttons\\UI-Common-MouseHilight")
 	frame:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
 
 	frame.text = frame:CreateFontString(nil, "Overlay")
-	frame.text:SetFontObject(GameFontNomal)
+	frame.text:SetFontObject(GameFontNormal)
 	frame.text:SetJustifyH("Left")
 	frame.text:SetJustifyV("Middle")
 	frame.text:SetWordWrap(false)
@@ -52,15 +46,9 @@ local CheckButtonIcon = CPU:RegisterWidget("CheckButtonIcon")
 function CheckButtonIcon:Create(parent)
 	local frame = CreateFrame("CheckButton", nil, parent)
 	frame:SetSize(100, 32)
-	frame:SetNormalFontObject(GameFontNomal)
-	local normalFont = frame:GetNormalFontObject()
-	normalFont:SetTextColor(1, 1, 1)
+	frame:SetNormalFontObject(GameFontNormal)
 	frame:SetHighlightFontObject(GameFontHighlight)
-	local highlightFont = frame:GetHighlightFontObject()
-	highlightFont:SetTextColor(1, 0.82, 0)
 	frame:SetDisabledFontObject(GameFontDisable)
-	local disableFont = frame:GetDisabledFontObject()
-	disableFont:SetTextColor(0.5, 0.5, 0.5)
 
 	frame.icon = frame:CreateTexture(nil, "Artwork")
 	frame.icon:SetSize(24, 24)
