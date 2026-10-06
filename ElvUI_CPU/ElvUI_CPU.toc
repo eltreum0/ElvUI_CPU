@@ -1,10 +1,14 @@
-## Interface: 20504
+## Interface: 11509, 16001, 20506, 38002, 50504, 120100, 120105
 ## Title: |cff1784d1ElvUI|r |cfffe7b2cCPU Analyzer|r
-## Version: 0.1.6
+## Notes: CPU Analyzer for ElvUI
 ## Author: Resike
+## Version: 0.1.9
 ## DefaultState: Enabled
 ## Dependencies: ElvUI
+## RequiredDeps: ElvUI
 ## LoadOnDemand: 1
+## IconTexture: Interface\AddOns\ElvUI_CPU\Textures\Play
+## AddonCompartmentFunc: ElvUI_CPU_OnAddonCompartmentClick
 
 ElvUI_CPU.lua
 

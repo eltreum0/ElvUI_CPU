@@ -5,7 +5,7 @@ local CPU = Addon.ElvUI_CPU
 local assert, strfind, tostring = assert, strfind, tostring
 local type, select, sort = type, select, sort
 
-local min, max, round = min, max, math.round
+local min, max, floor, round = min, max, floor or math.floor, math.round
 
 local UIParent = UIParent
 local PlaySound = PlaySound
@@ -72,7 +72,7 @@ function Table:Create(parent)
 	self.frame.scrollbar:SetValueStep(22)
 	self.frame.scrollbar:SetObeyStepOnDrag(true)
 	self.frame.scrollbar.scrollStep = 1
-	self.frame.scrollbar:SetValue(1)
+	self.frame.scrollbar:SetValue(0)
 	self.frame.scrollbar.ScrollUpButton:Disable()
 	self.frame.scrollbar:SetWidth(16)
 
@@ -97,7 +97,7 @@ function Table:Create(parent)
 		self:GetParent().scrollframe:SetVerticalScroll(value)
 
 		-- Too expensive
-		local offset = (self:GetValue() / self:GetValueStep())
+		local offset = floor((self:GetValue() or 0) / (self:GetValueStep() or 22))
 
 		if offset % 2 == 0 then
 			for i = 1, #Table.frame.rowframes do
@@ -186,7 +186,10 @@ function Table:SortColumn()
 		items = self.frame.sorted
 	end
 
-	sort(items, self.frame.columns[self.frame.sortedheader][5])
+	local comp = (self.frame.columns[self.frame.sortedheader] and self.frame.columns[self.frame.sortedheader][5]) or self.sorter or self.frame.sorter
+	if comp then
+		sort(items, comp)
+	end
 
 	self:UpdateItems()
 end
@@ -197,7 +200,7 @@ function Table:AddColumn(text, width, format, last)
 
 	--tinsert(self.frame.columns, {frame, text, width, format})
 
-	self.frame.columns[#self.frame.columns + 1] = {frame, text, width, format, self.sorter, width}
+	self.frame.columns[#self.frame.columns + 1] = {frame, text, width, format, self.sorter or self.frame.sorter, width}
 
 	--self:Sort()
 
@@ -758,7 +761,7 @@ function Table:UpdateItems()
 		k = #self.frame.rowframes
 	end
 
-	local offset = (self.frame.scrollbar:GetValue() / self.frame.scrollbar:GetValueStep())
+	local offset = floor((self.frame.scrollbar:GetValue() or 0) / (self.frame.scrollbar:GetValueStep() or 22))
 
 	for i = 1, k do
 		for j = 1, #self.frame.rowframes[i] do
@@ -768,7 +771,8 @@ function Table:UpdateItems()
 			if type(format) == "string" then
 				if items[i + offset] then
 					frame:Show()
-					frame.text:SetText(format:format(items[i + offset][j].text))
+					local val = tonumber(items[i + offset][j].text) or 0
+					frame.text:SetText(format:format(val))
 				else
 					frame:Hide()
 					frame.text:SetText("")
@@ -776,7 +780,7 @@ function Table:UpdateItems()
 			else
 				if items[i + offset] then
 					frame:Show()
-					frame.text:SetText(tostring(items[i + offset][j].text))
+					frame.text:SetText(tostring(items[i + offset][j].text or ""))
 				else
 					frame:Hide()
 					frame.text:SetText("")

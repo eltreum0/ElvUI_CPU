@@ -13,16 +13,19 @@ local wipe, max, floor = wipe, max, floor
 local CreateFrame = CreateFrame
 local ResetCPUUsage = ResetCPUUsage
 local GetAddOnCPUUsage = GetAddOnCPUUsage
-local GetAddOnMetadata = GetAddOnMetadata
+local GetAddOnMetadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
 local GetCursorPosition = GetCursorPosition
 local GetFunctionCPUUsage = GetFunctionCPUUsage
 local UpdateAddOnCPUUsage = UpdateAddOnCPUUsage
 local PlaySound = PlaySound
 local GetTime = GetTime
+local debugprofilestop = debugprofilestop
+local select, pcall = select, pcall
 
 local UIParent = UIParent
 local GameFontHighlightSmall = GameFontHighlightSmall
 local GameFontNormal = GameFontNormal
+local GameTooltip = GameTooltip
 
 _G.ElvUI_CPU = CPU
 
@@ -35,15 +38,45 @@ end
 math.round = round
 
 local SetResizeBounds = function(frame, minWidth, minHeight, maxWidth, maxHeight)
-	if ElvUI.Classic then
-		frame:SetMaxResize(maxWidth, maxHeight)
-		frame:SetMinResize(minWidth, minHeight)
-	else
+	if frame.SetResizeBounds then
 		frame:SetResizeBounds(minWidth, minHeight, maxWidth, maxHeight)
+	else
+		if frame.SetMaxResize then
+			frame:SetMaxResize(maxWidth, maxHeight)
+		end
+		if frame.SetMinResize then
+			frame:SetMinResize(minWidth, minHeight)
+		end
 	end
 end
 
 Addon.SetResizeBounds = SetResizeBounds
+
+if not GetAddOnCPUUsage and C_AddOnProfiler and C_AddOnProfiler.GetAddOnMetric then
+	GetAddOnCPUUsage = function(addon)
+		local metric = (Enum and Enum.AddOnProfilerMetric and Enum.AddOnProfilerMetric.SessionAverageTime) or 0
+		return C_AddOnProfiler.GetAddOnMetric(addon, metric) or 0
+	end
+end
+
+local GetFunctionCPUUsage = GetFunctionCPUUsage or function(func, subs) return 0, 0 end
+local UpdateAddOnCPUUsage = UpdateAddOnCPUUsage or function(addon) end
+local ResetCPUUsage = ResetCPUUsage or function() end
+
+local function EnableProfiling()
+	if C_AddOnProfiler and C_AddOnProfiler.IsEnabled and not C_AddOnProfiler.IsEnabled() then
+		if C_CVar and C_CVar.SetCVar then
+			pcall(C_CVar.SetCVar, "addonProfilerEnabled", "1")
+		elseif SetCVar then
+			pcall(SetCVar, "addonProfilerEnabled", "1")
+		end
+	end
+	if C_CVar and C_CVar.SetCVar then
+		pcall(C_CVar.SetCVar, "scriptProfile", "1")
+	elseif SetCVar then
+		pcall(SetCVar, "scriptProfile", "1")
+	end
+end
 
 CPU.events = CreateFrame("Frame")
 CPU.events:RegisterEvent("ADDON_LOADED")
@@ -106,11 +139,13 @@ function CPU:HasWidget(name)
 end
 
 function CPU:GetLoadedTime()
-	return floor(GetTime() - ElvUI.loadedtime or self.loadedtime)
+	local startTime = (ElvUI and ElvUI.loadedtime) or self.loadedtime or GetTime()
+	return max(1, floor(GetTime() - startTime))
 end
 
 function CPU:ADDON_LOADED(addon)
 	if addon == AddonName then
+		EnableProfiling()
 		CPU.loadedtime = GetTime()
 
 		self:CreateOptions()
@@ -190,7 +225,7 @@ function CPU:CreateOptions()
 	self.frame.version:SetHeight(20)
 	self.frame.version:SetJustifyV("Middle")
 	self.frame.version:SetJustifyH("Right")
-	self.frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
+	self.frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
 	self.frame.version:SetWordWrap(false)
 
 	self.frame.main = { }
@@ -208,6 +243,10 @@ function CPU:CreateOptions()
 	self.frame.main.devtools.table:AddColumn("Time/call", 0.12, "%.3f ms")
 	self.frame.main.devtools.table:AddColumn("Total time", 0.12, "%.3f ms")
 	self.frame.main.devtools.table:AddColumn("Overall", 0.1, "%.2f%%", true)
+
+	self.frame:HookScript("OnShow", function()
+		CPU:UpdateFunctions()
+	end)
 
 	self.frame.main.devtools.table:SetScript("OnShow", function(frame)
 		CPU:UpdateFunctions()
@@ -235,6 +274,14 @@ function CPU:CreateOptions()
 			self.texture:SetTexCoord(0.3125, 0.75, 0.0625, 0.875)
 		end
 	end)
+	self.frame.main.devtools.table.toggle:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Start / Stop Counting")
+		GameTooltip:Show()
+	end)
+	self.frame.main.devtools.table.toggle:SetScript("OnLeave", function(self)
+		GameTooltip:Hide()
+	end)
 
 	self.frame.main.devtools.table.refresh = self:CreateWidget("ButtonSquare", self.frame.main.devtools.table)
 	self.frame.main.devtools.table.refresh:SetPoint("TopLeft", self.frame.main.devtools.table.toggle, "TopRight", 0, 0)
@@ -246,6 +293,14 @@ function CPU:CreateOptions()
 		CPU:UpdateFunctions()
 
 		CPU.update_silent = silent
+	end)
+	self.frame.main.devtools.table.refresh:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Refresh")
+		GameTooltip:Show()
+	end)
+	self.frame.main.devtools.table.refresh:SetScript("OnLeave", function(self)
+		GameTooltip:Hide()
 	end)
 
 	self.frame.main.devtools.table.clear = self:CreateWidget("ButtonSquare", self.frame.main.devtools.table)
@@ -264,6 +319,14 @@ function CPU:CreateOptions()
 
 		CPU.allow_reset = nil
 		CPU.update_silent = silent
+	end)
+	self.frame.main.devtools.table.clear:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Reset CPU Usage")
+		GameTooltip:Show()
+	end)
+	self.frame.main.devtools.table.clear:SetScript("OnLeave", function(self)
+		GameTooltip:Hide()
 	end)
 
 	self.frame.main.devtools.table.silent = self:CreateWidget("CheckButtonSquare", self.frame.main.devtools.table)
@@ -287,6 +350,14 @@ function CPU:CreateOptions()
 			self.texture:SetTexture("Interface\\AddOns\\ElvUI_CPU\\Textures\\Play")
 			self.texture:SetTexCoord(0.3125, 0.75, 0.0625, 0.875)
 		end
+	end)
+	self.frame.main.devtools.table.silent:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Silent Mode")
+		GameTooltip:Show()
+	end)
+	self.frame.main.devtools.table.silent:SetScript("OnLeave", function(self)
+		GameTooltip:Hide()
 	end)
 
 	self.frame.main.devtools.table.edit = self:CreateWidget("EditBox", self.frame.main.devtools.table)
@@ -356,7 +427,7 @@ function CPU:CreateOptions()
 
 	self.frame.main.devtools.table.edit.number = self.frame.main.devtools.table:CreateFontString(nil, "Background")
 	self.frame.main.devtools.table.edit.number:SetFontObject(GameFontHighlightSmall)
-	self.frame.main.devtools.table.edit.number:SetSize(200, 26)
+	self.frame.main.devtools.table.edit.number:SetSize(280, 26)
 	self.frame.main.devtools.table.edit.number:SetJustifyV("Middle")
 	self.frame.main.devtools.table.edit.number:SetJustifyH("Left")
 	self.frame.main.devtools.table.edit.number:SetWordWrap(false)
@@ -375,9 +446,9 @@ function CPU:CreateOptions()
 		CPU.frame.main.devtools.table:SetFilter(text)
 
 		if text == "" then
-			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
+			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
 		else
-			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
+			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
 		end
 	end)
 
@@ -392,37 +463,70 @@ end
 
 function CPU:ToggleFrame()
 	if not self.frame:IsShown() then
+		EnableProfiling()
 		self.frame:Show()
+		CPU:UpdateFunctions()
 	else
 		self.frame:Hide()
 	end
 end
 
-function CPU:RegisterPlugin(pluginName)
-	if (not self.plugins) then
-		self.plugins = {};
+function CPU:RegisterPlugin(pluginName, pluginTable)
+	if not self.plugins then
+		self.plugins = {}
 	end
-	self.plugins[pluginName] = true;
+
+	local name = pluginName
+	local tbl = pluginTable
+	if type(pluginName) == "table" then
+		tbl = pluginName
+		name = tbl.name or tbl.Title or tostring(tbl)
+	end
+
+	if type(name) == "string" then
+		self.plugins[name] = true
+	end
+
+	if type(tbl) == "table" and tbl.modules then
+		for moduleName, mod in pairs(tbl.modules) do
+			if type(mod) == "table" then
+				self:RegisterPluginModule(name, moduleName, mod)
+			end
+		end
+	end
 end
 
 function CPU:RegisterPluginModule(pluginName, moduleName, module)
-	if (not self.pluginModules) then
-		self.pluginModules = {};
+	if not self.pluginModules then
+		self.pluginModules = {}
 	end
-	self.pluginModules[pluginName] = self.pluginModules[pluginName] or {};
-	self.pluginModules[pluginName][moduleName] = module;
+	if type(pluginName) == "table" then
+		pluginName = pluginName.name or pluginName.Title or tostring(pluginName)
+	end
+	self.pluginModules[pluginName] = self.pluginModules[pluginName] or {}
+	self.pluginModules[pluginName][moduleName] = module
 	for key, func in pairs(module) do
 		if type(func) == "function" then
-			self:AddFunction(("(Z)%s %s: %s"):format(pluginName, moduleName, key), func);
+			self:AddFunction(("(Z)%s %s: %s"):format(tostring(pluginName):gsub("ElvUI_", ""):sub(1, 1), moduleName, key), func)
 		end
 	end
 end
 
 function CPU:AddFunction(key, func)
+	if not (self.frame and self.frame.main and self.frame.main.devtools and self.frame.main.devtools.table) then
+		self.pendingFunctions = self.pendingFunctions or {}
+		self.pendingFunctions[#self.pendingFunctions + 1] = { key = key, func = func }
+		return
+	end
+
 	local subs = false
 	local usage, calls = GetFunctionCPUUsage(func, subs)
-	usage = max(0, usage)
-	self.frame.main.devtools.table:AddRow(key, calls, calls / self:GetLoadedTime(), (self.peaks[func] and self.peaks[func].ms) or 0, usage / max(1, calls), usage, (usage / max(1, GetAddOnCPUUsage("ElvUI"))) * 100)
+	usage = max(0, usage or 0)
+	calls = calls or 0
+
+	local elvUsage = (GetAddOnCPUUsage and GetAddOnCPUUsage("ElvUI")) or 0
+
+	self.frame.main.devtools.table:AddRow(key, calls, calls / max(1, self:GetLoadedTime()), (self.peaks[func] and self.peaks[func].ms) or 0, usage / max(1, calls), usage, (usage / max(1, elvUsage)) * 100)
 end
 
 function CPU:AddFunctions()
@@ -440,13 +544,22 @@ function CPU:AddFunctions()
 		end
 	end
 
+	if self.pendingFunctions then
+		local pending = self.pendingFunctions
+		self.pendingFunctions = nil
+		for i = 1, #pending do
+			self:AddFunction(pending[i].key, pending[i].func)
+		end
+	end
+
 	self.frame.main.devtools.table:ApplyFilter()
 end
 
 function CPU:UpdateFunction(key, func)
 	local subs = false
 	local usage, calls = GetFunctionCPUUsage(func, subs)
-	usage = max(0, usage)
+	usage = max(0, usage or 0)
+	calls = calls or 0
 
 	local peaks = self.peaks[func]
 	if not peaks then
@@ -467,9 +580,11 @@ function CPU:UpdateFunction(key, func)
 
 	if CPU.update_silent then return end
 
-	local callspersec = calls / self:GetLoadedTime()
+	local callspersec = calls / max(1, self:GetLoadedTime())
 	local timepercall = usage / max(1, calls)
-	local overallusage = (usage / max(1, GetAddOnCPUUsage("ElvUI"))) * 100
+
+	local elvUsage = (GetAddOnCPUUsage and GetAddOnCPUUsage("ElvUI")) or 0
+	local overallusage = (usage / max(1, elvUsage)) * 100
 
 	if not CPU.allow_reset and (calls == 0 and callspersec == 0 and timepercall == 0 and usage == 0 and overallusage == 0) then
 		return
@@ -489,10 +604,13 @@ function CPU:FunctionsOnUpdate(elapsed)
 end
 
 function CPU:UpdateTimes()
-	UpdateAddOnCPUUsage("ElvUI")
-	if (self.plugins) then
-		for plugin, _ in pairs(self.plugins) do
-			UpdateAddOnCPUUsage(plugin);
+	if UpdateAddOnCPUUsage then
+		UpdateAddOnCPUUsage()
+		UpdateAddOnCPUUsage("ElvUI")
+		if self.plugins then
+			for plugin, _ in pairs(self.plugins) do
+				UpdateAddOnCPUUsage(plugin)
+			end
 		end
 	end
 
@@ -510,12 +628,12 @@ function CPU:UpdateTimes()
 		end
 	end
 
-	if (self.pluginModules) then
-		for plugin,modules in pairs(self.pluginModules) do
-			for moduleName,module in pairs(modules) do
+	if self.pluginModules then
+		for plugin, modules in pairs(self.pluginModules) do
+			for moduleName, module in pairs(modules) do
 				for key, func in pairs(module) do
 					if type(func) == "function" then
-						self:UpdateFunction(("(Z)%s %s: %s"):format(plugin:gsub("ElvUI_",""):sub(1,1), moduleName, key), func);
+						self:UpdateFunction(("(Z)%s %s: %s"):format(tostring(plugin):gsub("ElvUI_", ""):sub(1, 1), moduleName, key), func)
 					end
 				end
 			end
@@ -529,29 +647,33 @@ function CPU:UpdateFunctions()
 	self.frame.main.devtools.table:Update()
 
 	if CPU.frame.main.devtools.table.edit:GetText() == "" then
-		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
+		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
 	else
-		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
+		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
 	end
 end
 
 function CPU:GetTotal(row)
 	local x = 0
-
-	for i = 1, #self.frame.main.devtools.table.sorted do
-		x = x + tonumber(self.frame.main.devtools.table.sorted[i][row].text)
+	local sorted = self.frame and self.frame.main and self.frame.main.devtools and self.frame.main.devtools.table and self.frame.main.devtools.table.sorted
+	if sorted then
+		for i = 1, #sorted do
+			local val = sorted[i][row] and sorted[i][row].text
+			x = x + (tonumber(val) or 0)
+		end
 	end
-
 	return x
 end
 
 function CPU:GetFiltered(row)
 	local x = 0
-
-	for i = 1, #self.frame.main.devtools.table.filtered do
-		x = x + tonumber(self.frame.main.devtools.table.filtered[i][row].text)
+	local filtered = self.frame and self.frame.main and self.frame.main.devtools and self.frame.main.devtools.table and self.frame.main.devtools.table.filtered
+	if filtered then
+		for i = 1, #filtered do
+			local val = filtered[i][row] and filtered[i][row].text
+			x = x + (tonumber(val) or 0)
+		end
 	end
-
 	return x
 end
 
@@ -642,7 +764,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
 	end)
 
 	frame.bl = CreateFrame("Frame", nil, frame)
@@ -709,7 +831,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
 	end)
 
 	frame.tl = CreateFrame("Frame", nil, frame)
@@ -777,7 +899,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
 	end)
 
 	frame.tr = CreateFrame("Frame", nil, frame)
@@ -845,7 +967,7 @@ function CPU:MakeScaleable(frame)
 		frame:StopMovingOrSizing()
 		frame:SetResizable(false)
 
-		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version"))
+		frame.version:SetText(GetAddOnMetadata("ElvUI_CPU", "Version") or "0.1.8")
 	end)
 
 	frame:SetScript("OnSizeChanged", function(self)
@@ -947,4 +1069,8 @@ function CPU:ScaleChildrens(frame, scale)
 			child:SetScale(scale)
 		end
 	end
+end
+
+function ElvUI_CPU_OnAddonCompartmentClick()
+	CPU:ToggleFrame()
 end
