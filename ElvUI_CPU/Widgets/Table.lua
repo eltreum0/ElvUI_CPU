@@ -42,6 +42,7 @@ function Table:Create(parent)
 	--self.frame.rowstext = { }
 
 	self.frame.sorted = { }
+	self.frame.rowsByName = { }
 
 	self.frame.sortedheader = 1
 	self.frame.descending = false
@@ -352,7 +353,7 @@ function Table:CreateColumn(parent, text, width, format, last)
 
 			-- This should be recursive
 			--for i = #Table.frame.columns, self:GetID() + 1, -1 do
-				local i = 6
+				local i = #Table.frame.columns - 1
 				if Table.frame.columns[i][1]:GetWidth() < (Table.frame:GetWidth() * Table.frame.columns[i][3] / 1.4) then
 					local diff = Table.frame:GetWidth() * Table.frame.columns[i][3] / 1.4 - Table.frame.columns[i][1]:GetWidth()
 
@@ -475,14 +476,18 @@ function Table:AddRow(...)
 	--tinsert(self.frame.rows, {#self.frame.rows + 1, ...})
 
 	--self.frame.rows[#self.frame.rows + 1] = { }
-	self.frame.sorted[#self.frame.sorted + 1] = { }
+	local row = { }
+	self.frame.sorted[#self.frame.sorted + 1] = row
 	for i = 1, (select("#", ...)) do
 		local text = (select(i, ...))
-		--self.frame.rows[#self.frame.rows][i] = { }
-		--self.frame.rows[#self.frame.rows][i].text = text
-		self.frame.sorted[#self.frame.sorted][i] = { }
-		self.frame.sorted[#self.frame.sorted][i].text = text
+		row[i] = { text = text }
 	end
+
+	local name = select(1, ...)
+	if not self.frame.rowsByName then
+		self.frame.rowsByName = { }
+	end
+	self.frame.rowsByName[name] = row
 
 	--self:ApplyFilter()
 
@@ -596,20 +601,16 @@ end
 function Table:UpdateRow(...)
 	local name = ...
 
-	-- Only update visible rows
-	--[[local startline = (self.frame.scrollbar:GetValue() / 22) + 1
-	local endline = startline + 18
-
-	if endline > #self.frame.rows then
-		endline = #self.frame.rows
-	end]]
-
-	--[=[for j = 1, #self.frame.rows[self.frame.rowstext[name]] do
-		local text = (select(j, ...))
-		if self.frame.rows[self.frame.rowstext[name]][j].text ~= text then
-			self.frame.rows[self.frame.rowstext[name]][j].text = text
+	local row = self.frame.rowsByName and self.frame.rowsByName[name]
+	if row then
+		for j = 2, #row do
+			local text = (select(j, ...))
+			if row[j].text ~= text then
+				row[j].text = text
+			end
 		end
-	end]=]
+		return
+	end
 
 	local items
 	if self.frame.filter and self.frame.filter ~= "" then

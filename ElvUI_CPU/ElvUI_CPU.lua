@@ -60,9 +60,11 @@ if not GetAddOnCPUUsage and C_AddOnProfiler and C_AddOnProfiler.GetAddOnMetric t
 	end
 end
 
+local GetAddOnCPUUsage = GetAddOnCPUUsage or function(addon) return 0 end
 local GetFunctionCPUUsage = GetFunctionCPUUsage or function(func, subs) return 0, 0 end
 local UpdateAddOnCPUUsage = UpdateAddOnCPUUsage or function(addon) end
 local ResetCPUUsage = ResetCPUUsage or function() end
+local SetCVar = (C_CVar and C_CVar.SetCVar) or SetCVar
 
 local function EnableProfiling()
 	if InCombatLockdown and InCombatLockdown() then
@@ -70,17 +72,9 @@ local function EnableProfiling()
 	end
 
 	if C_AddOnProfiler and C_AddOnProfiler.IsEnabled and not C_AddOnProfiler.IsEnabled() then
-		if C_CVar and C_CVar.SetCVar then
-			pcall(C_CVar.SetCVar, "addonProfilerEnabled", "1")
-		elseif SetCVar then
-			pcall(SetCVar, "addonProfilerEnabled", "1")
-		end
+		pcall(SetCVar, "addonProfilerEnabled", "1")
 	end
-	if C_CVar and C_CVar.SetCVar then
-		pcall(C_CVar.SetCVar, "scriptProfile", "1")
-	elseif SetCVar then
-		pcall(SetCVar, "scriptProfile", "1")
-	end
+	pcall(SetCVar, "scriptProfile", "1")
 end
 
 CPU.events = CreateFrame("Frame")
@@ -169,8 +163,8 @@ end
 function CPU:CreateOptions()
 	self.frame = self:CreateWidget("Window", "ElvUI_CPUOptions", UIParent)
 	self.frame:SetFrameStrata("High")
-	self.frame:SetSize(800, 600)
-	self.frame:SetPoint("TopLeft", UIParent, "TopLeft", (UIParent:GetWidth() / 2) - 400, (-UIParent:GetHeight() / 2) + 300)
+	self.frame:SetSize(1000, 600)
+	self.frame:SetPoint("TopLeft", UIParent, "TopLeft", (UIParent:GetWidth() / 2) - 500, (-UIParent:GetHeight() / 2) + 300)
 	self.frame:EnableMouse(true)
 	--self.frame:SetMovable(true)
 
@@ -241,13 +235,14 @@ function CPU:CreateOptions()
 	self.frame.main.devtools.table:SetPoint("BottomRight", self.frame, "BottomRight", -5 - 20, 75)
 	--self.frame.main.devtools.table:Hide()
 
-	self.frame.main.devtools.table:AddColumn("Function", 0.33)
-	self.frame.main.devtools.table:AddColumn("Calls", 0.1)
-	self.frame.main.devtools.table:AddColumn("Calls/sec", 0.11, "%.3f")
-	self.frame.main.devtools.table:AddColumn("Peak time", 0.12, "%.3f ms")
-	self.frame.main.devtools.table:AddColumn("Time/call", 0.12, "%.3f ms")
+	self.frame.main.devtools.table:AddColumn("Function", 0.28)
+	self.frame.main.devtools.table:AddColumn("Calls", 0.08)
+	self.frame.main.devtools.table:AddColumn("Calls/sec", 0.09, "%.3f")
+	self.frame.main.devtools.table:AddColumn("Peak time", 0.11, "%.3f ms")
+	self.frame.main.devtools.table:AddColumn("Time/call", 0.11, "%.3f ms")
+	self.frame.main.devtools.table:AddColumn("Time/sec", 0.11, "%.3f ms")
 	self.frame.main.devtools.table:AddColumn("Total time", 0.12, "%.3f ms")
-	self.frame.main.devtools.table:AddColumn("Overall", 0.1, "%.2f%%", true)
+	self.frame.main.devtools.table:AddColumn("Overall", 0.10, "%.2f%%", true)
 
 	self.frame:HookScript("OnShow", function()
 		CPU:UpdateFunctions()
@@ -432,7 +427,7 @@ function CPU:CreateOptions()
 
 	self.frame.main.devtools.table.edit.number = self.frame.main.devtools.table:CreateFontString(nil, "Background")
 	self.frame.main.devtools.table.edit.number:SetFontObject(GameFontHighlightSmall)
-	self.frame.main.devtools.table.edit.number:SetSize(280, 26)
+	self.frame.main.devtools.table.edit.number:SetSize(380, 26)
 	self.frame.main.devtools.table.edit.number:SetJustifyV("Middle")
 	self.frame.main.devtools.table.edit.number:SetJustifyH("Left")
 	self.frame.main.devtools.table.edit.number:SetWordWrap(false)
@@ -451,9 +446,9 @@ function CPU:CreateOptions()
 		CPU.frame.main.devtools.table:SetFilter(text)
 
 		if text == "" then
-			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
+			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/s (1s update) | %0.3f ms total", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(6), CPU:GetTotal(7))
 		else
-			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
+			CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/s (1s update) | %0.3f ms total", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(6), CPU:GetFiltered(7))
 		end
 	end)
 
@@ -529,9 +524,14 @@ function CPU:AddFunction(key, func)
 	usage = max(0, usage or 0)
 	calls = calls or 0
 
-	local elvUsage = (GetAddOnCPUUsage and GetAddOnCPUUsage("ElvUI")) or 0
+	local elvUsage = GetAddOnCPUUsage("ElvUI")
 
-	self.frame.main.devtools.table:AddRow(key, calls, calls / max(1, self:GetLoadedTime()), (self.peaks[func] and self.peaks[func].ms) or 0, usage / max(1, calls), usage, (usage / max(1, elvUsage)) * 100)
+	local initPeak = (calls > 0 and (usage / calls)) or 0
+	if not self.peaks[func] then
+		self.peaks[func] = { ms = initPeak, last = usage, past = calls }
+	end
+
+	self.frame.main.devtools.table:AddRow(key, calls, calls / max(1, self:GetLoadedTime()), (self.peaks[func] and self.peaks[func].ms) or initPeak, usage / max(1, calls), 0, usage, (usage / max(1, elvUsage)) * 100)
 end
 
 function CPU:AddFunctions()
@@ -560,7 +560,7 @@ function CPU:AddFunctions()
 	self.frame.main.devtools.table:ApplyFilter()
 end
 
-function CPU:UpdateFunction(key, func)
+function CPU:UpdateFunction(key, func, loadedTime, parentUsage)
 	local subs = false
 	local usage, calls = GetFunctionCPUUsage(func, subs)
 	usage = max(0, usage or 0)
@@ -568,13 +568,21 @@ function CPU:UpdateFunction(key, func)
 
 	local peaks = self.peaks[func]
 	if not peaks then
-		self.peaks[func] = { ms = 0 }
+		local initPeak = (calls > 0 and (usage / calls)) or 0
+		self.peaks[func] = { ms = initPeak }
 		peaks = self.peaks[func]
 	end
 
+	local timepersec = 0
 	if peaks.last then
+		local timeDiff = usage - peaks.last
+		local interval = CPU.lastInterval or 1
+		if timeDiff > 0 and interval > 0 then
+			timepersec = timeDiff / interval
+		end
+
 		local times = calls - peaks.past
-		local diff = times > 0 and ((usage - peaks.last) / times)
+		local diff = times > 0 and (timeDiff / times)
 		if diff and (diff > peaks.ms) then
 			peaks.ms = diff
 		end
@@ -585,17 +593,18 @@ function CPU:UpdateFunction(key, func)
 
 	if CPU.update_silent then return end
 
-	local callspersec = calls / max(1, self:GetLoadedTime())
+	local uptime = loadedTime or max(1, self:GetLoadedTime())
+	local callspersec = calls / uptime
 	local timepercall = usage / max(1, calls)
 
-	local elvUsage = (GetAddOnCPUUsage and GetAddOnCPUUsage("ElvUI")) or 0
-	local overallusage = (usage / max(1, elvUsage)) * 100
+	local baseUsage = parentUsage or GetAddOnCPUUsage("ElvUI")
+	local overallusage = (usage / max(1, baseUsage)) * 100
 
-	if not CPU.allow_reset and (calls == 0 and callspersec == 0 and timepercall == 0 and usage == 0 and overallusage == 0) then
+	if not CPU.allow_reset and (calls == 0 and callspersec == 0 and timepercall == 0 and timepersec == 0 and usage == 0 and overallusage == 0) then
 		return
 	end
 
-	self.frame.main.devtools.table:UpdateRow(key, calls, callspersec, peaks.ms, timepercall, usage, overallusage)
+	self.frame.main.devtools.table:UpdateRow(key, calls, callspersec, peaks.ms, timepercall, timepersec, usage, overallusage)
 end
 
 CPU.timer = CreateFrame('Frame')
@@ -603,42 +612,48 @@ function CPU:FunctionsOnUpdate(elapsed)
 	self.time = (self.time or 0) + elapsed
 
 	if (CPU.update_silent or CPU.frame:IsShown()) and self.time >= 1 then
+		CPU.lastInterval = self.time
 		CPU:UpdateFunctions()
 		self.time = 0
 	end
 end
 
 function CPU:UpdateTimes()
-	if UpdateAddOnCPUUsage then
-		UpdateAddOnCPUUsage()
-		UpdateAddOnCPUUsage("ElvUI")
-		if self.plugins then
-			for plugin, _ in pairs(self.plugins) do
-				UpdateAddOnCPUUsage(plugin)
-			end
+	UpdateAddOnCPUUsage()
+	UpdateAddOnCPUUsage("ElvUI")
+
+	local loadedTime = max(1, self:GetLoadedTime())
+	local elvUsage = GetAddOnCPUUsage("ElvUI")
+
+	local pluginUsages = {}
+	if self.plugins then
+		for plugin in pairs(self.plugins) do
+			UpdateAddOnCPUUsage(plugin)
+			pluginUsages[plugin] = GetAddOnCPUUsage(plugin)
 		end
 	end
 
 	for key, func in pairs(ElvUI) do
 		if type(func) == "function" then
-			self:UpdateFunction("ElvUI:"..key, func)
+			self:UpdateFunction("ElvUI:"..key, func, loadedTime, elvUsage)
 		end
 	end
 
 	for module, tbl in pairs(ElvUI.modules) do
 		for key, func in pairs(tbl) do
 			if type(func) == "function" then
-				self:UpdateFunction(module..":"..key, func)
+				self:UpdateFunction(module..":"..key, func, loadedTime, elvUsage)
 			end
 		end
 	end
 
 	if self.pluginModules then
 		for plugin, modules in pairs(self.pluginModules) do
+			local addonUsage = pluginUsages[plugin] or elvUsage
 			for moduleName, module in pairs(modules) do
 				for key, func in pairs(module) do
 					if type(func) == "function" then
-						self:UpdateFunction(("(Z)%s %s: %s"):format(tostring(plugin):gsub("ElvUI_", ""):sub(1, 1), moduleName, key), func)
+						self:UpdateFunction(("(Z)%s %s: %s"):format(tostring(plugin):gsub("ElvUI_", ""):sub(1, 1), moduleName, key), func, loadedTime, addonUsage)
 					end
 				end
 			end
@@ -652,10 +667,23 @@ function CPU:UpdateFunctions()
 	self.frame.main.devtools.table:Update()
 
 	if CPU.frame.main.devtools.table.edit:GetText() == "" then
-		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(5))
+		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/s (1s update) | %0.3f ms total", #CPU.frame.main.devtools.table.sorted, CPU:GetTotal(6), CPU:GetTotal(7))
 	else
-		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/call (1s update)", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(5))
+		CPU.frame.main.devtools.table.edit.number:SetFormattedText("%d functions: %0.3f ms/s (1s update) | %0.3f ms total", #CPU.frame.main.devtools.table.filtered, CPU:GetFiltered(6), CPU:GetFiltered(7))
 	end
+end
+
+function CPU:GetAverageTimePerCall(filtered)
+	local items = self.frame and self.frame.main and self.frame.main.devtools and self.frame.main.devtools.table and (filtered and self.frame.main.devtools.table.filtered or self.frame.main.devtools.table.sorted)
+	if not items then return 0 end
+
+	local totalTime = 0
+	local totalCalls = 0
+	for i = 1, #items do
+		totalCalls = totalCalls + (tonumber(items[i][2] and items[i][2].text) or 0)
+		totalTime = totalTime + (tonumber(items[i][7] and items[i][7].text) or 0)
+	end
+	return totalTime / max(1, totalCalls)
 end
 
 function CPU:GetTotal(row)
